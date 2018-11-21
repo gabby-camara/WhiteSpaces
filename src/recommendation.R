@@ -6,13 +6,20 @@
 # https://rpubs.com/mm-c/gather-and-spread
 # --------------
 # rdf = ratings dataframe
-rdf = sector_product %>% 
-      select(Legal.Entity.Subsidiary, Product, Actual) %>%
-      group_by(Legal.Entity.Subsidiary, Product) %>%
-      mutate(Actual = sum(Actual)) %>%
-      distinct()
+# rdf = sector_product %>% 
+#       select(Legal.Entity.Subsidiary, Product, Actual) %>%
+#       group_by(Legal.Entity.Subsidiary, Product) %>%
+#       mutate(Actual = sum(Actual)) %>%
+#       distinct()
 
-rdf = spread(rdf, Product, Actual)
+# using log of Actual values
+rdf = sector_product %>% 
+  select(Legal.Entity.Subsidiary, Product, log.Actual) %>%
+  group_by(Legal.Entity.Subsidiary, Product) %>%
+  mutate(log.Actual = sum(log.Actual)) %>%
+  distinct()
+
+rdf = spread(rdf, Product, log.Actual)
 
 # set ClientKey as row indices
 rownames(rdf) = rdf$Legal.Entity.Subsidiary
@@ -28,8 +35,10 @@ summary(rdf$count.Products)
 # 6696 * mean(count.Products) 'actual density' = actual number of ratings
 
 # number of products per client
-ggplotly(ggplot(rdf, aes(x = count.Products)) +
-          geom_histogram(binwidth = 1))
+ggplot(rdf, aes(x = count.Products)) + geom_histogram(binwidth = 1) +
+  labs(title = 'Count of Products',
+       x = 'Count of Products',
+       y = 'Count of Legal Entities')
 
 rdf$count.Products = NULL # drop column to reduce df size
 
@@ -46,15 +55,6 @@ colnames(rdf_re) = colnames(rdf) # keep correct format of colnames (no . for spa
 
 summary(rdf_re$`ABSA CAPITAL`)
 
-# min_max
-normalize =  function(x) {
-  return ((x - min(x)) / (max(x) - min(x)))
-}
-rdf_mm = as.data.frame(lapply(rdf, normalize))
-summary(rdf_mm)
-
-# scale base function: z-score standardization
-rdf_z = as.data.frame(scale(rdf))
 
 #validate scale
 # --------------
@@ -63,6 +63,7 @@ max(rdf_re[][], na.rm = TRUE)
 
 # visualization
 # *** convert to ggplot!
+
 hist(as.vector(as.matrix(rdf_re)), main = "Distribution of Ratings",
      col = "yellow", xlab = "Ratings")
 
@@ -70,9 +71,11 @@ boxplot(as.vector(as.matrix(rdf_re)), col = "yellow",
         main = "Distribution of Ratings", ylab = "Ratings")
 
 average_ratings_per_entity = rowMeans(rdf_re, na.rm = TRUE)
+# compare average ratings to actual revenus to 
 
 hist(average_ratings_per_entity, main = "Distribution of the average rating per Entity",
      col = "yellow")
+
 rm(average_ratings_per_entity)
 
 # creat test & training substes
@@ -299,6 +302,14 @@ p2@data@x[p2@data@x[] > 10] = 10
 p3@data@x[p3@data@x[] < 0] = 0
 p3@data@x[p3@data@x[] > 10] = 10
 
+boxplot(as.vector(as(p3, "matrix")), col = "yellow", 
+        main = "Distribution of Predicted Values for IBCF_Z_E Model", 
+        ylab = "Ratings")
+
+hist(as.vector(as(p3, "matrix")), 
+     main = "Distrib. of Predicted Values for IBCF_Z_E Model", col = "yellow", 
+     xlab = "Predicted Ratings")
+
 # aggregate the performance statistics
 error_IEUC = rbind(
   IBCF_N_E = calcPredictionAccuracy(p1, getData(e, "unknown")),
@@ -370,6 +381,32 @@ opportunities = predict(IBCF_N_E,
                         type = 'ratings')
 opportunities = as.data.frame(as.matrix(opportunities@data))
 
+colnames(opportunities) = colnames(rdf)
+
+# unscale predicted ratings
+# ---------------------------------------
+unscale_pred = function(rdf, opp){
+  
+  unscaled = rdf
+  products = colnames(rdf)
+  # perhaps make 0 == NA?
+  
+  for(i in 1:length(products)){
+    product = products[i]
+    
+    # unscaled[i] = numeric()
+    # i = 1
+    min = min(rdf[i], na.rm = TRUE)
+    max = max(rdf[i], na.rm = TRUE)
+    
+    unscaled[i] = sapply(opp[i], function(x) (10^((x/10)*(max-min)+min)))
+  }
+  return(unscaled)
+}
+
+unscaled = unscale_pred(rdf, opportunities)
+# add actual values & predicted values to one df
+
 opportunities$Entity = rownames(rdf)
 opportunities = opportunities %>%
   select(Entity, everything())
@@ -385,7 +422,6 @@ round_df = function(x, digits) {
 }
 opportunities = round_df(opportunities, 3)
 
-rm(round_df)
 
 # whitespaces = as.data.frame(as.matrix(rmat@data))
 whitespaces = rdf_re
@@ -405,6 +441,8 @@ for(i in 1:total_rows){
   }
 }
 
+
+
 # to note: df now has converted numeric to char to include the 'GOT'
 
 # ---------------------------------------
@@ -423,44 +461,10 @@ cust_opp_full$Product = as.factor(cust_opp_full$Product)
 cust_opp_full$Product.Selection = product_metadata$Product.Selection[match(cust_opp_full$Product, 
                                                                            product_metadata$Product)]
 
-# cust_opp_full = left_join(cust_opp_full, sector_product[, c('Legal.Entity.Subsidiary', 'Client.Sector')], by = c('Entity' = 'Legal.Entity.Subsidiary'))
 
 
-
-cust_opp_play = cust_opp_full %>% filter(Entity == 'ABSA TRUST LTD')
-
-
-CVPchosen = 'NBFI'
-CVP_play = CVP_selection %>% filter(CVPSector == CVPchosen)
-
-
-cust_opp_play$CVP_Match = CVP_play$Offering[match(cust_opp_play$Product.Selection, 
-                                                  CVP_play$Product.Selection)]
-
-
-
-# predict_product = function(customer_key) {
-# 
-#   # get the specified customer profile from the customer-item table
-#   cust_products = rdf_re[customer_key,]
-#   sp_products = as.matrix(cust_products)
-#   sp_products = as(cust_products, "realRatingMatrix")
-# 
-#   # perform the prediction
-#   recom = predict(IBCF_N_E, sp_products,n=3)
-# 
-#   return(as(recom,"list"))
-# }
-# # 
-# predict_product(1)
-
-# # presnt top 5 opportunities per customer
-# recommended.items.u15348 = opportunities[11, ]
-# # to display them
-# as(recommended.items.u15348, "list")
-# p1df = as.data.frame(as.matrix(p1@data))
-# p1df = as.data.frame(p1df)
-# as(p1, "matrix")[] 
-
+# memory clean-up
 rm(e, p1, p1df, p2, p3)
+
+
 

@@ -1,12 +1,11 @@
 # ----------------
 # load data
 # ----------------
+setwd('F:/NYDSA/WhiteSpaces 2.0')
 
 # load data about sector, clients & products
 # inlc argument = colClasses to correctly read in numeric from Actual value (factors drps the negative numbers)
 # ----------------
-setwd('F:/NYDSA/WhiteSpaces 2.0')
-
 sector_product = read.csv('shiny/data/Sector_Product_1.csv', 
                           header = TRUE,
                           na.strings = c("", '#N/A'), 
@@ -21,7 +20,7 @@ sector_product$ID = NULL
 
 # remove NA rows
 # ----------------
-colSums(is.na(sector_product))
+kable(colSums(is.na(sector_product)))
 sector_product = sector_product %>% drop_na(ClientKey) #dropping na from poorly creating the df @ beginning
 
 # convert characters to Factors
@@ -38,6 +37,7 @@ sector_product = mutate_if(sector_product, is.character, as.factor)
 banker_entity = read.csv('shiny/data/banker_client.csv', 
                          header = TRUE, 
                          na.strings = '')
+banker_entity = mutate_if(banker_entity, is.character, as.factor)
 
 
 # load CVP - Product Selection Info
@@ -52,4 +52,10 @@ CVP_selection = read.csv('shiny/data/CVP_ProductSelection.csv',
 product_metadata = read.csv('shiny/data/product_metadata.csv',
                              header = TRUE,
                              na.strings = '')
+
+# load segment - banker data
+# ----------------
+segment_banker = read.csv('shiny/data/segment_banker.csv',
+                          header = TRUE,
+                          na.strings = '')
 

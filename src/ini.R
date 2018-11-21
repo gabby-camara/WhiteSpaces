@@ -21,6 +21,9 @@ library(GGally)
 library(grid)
 library(gridExtra)
 library(DT)
+# library(scatter)
+library(RColorBrewer)
+library(scales)
 
 
 # dashboard
@@ -37,6 +40,7 @@ library(caret)
 # recommendation
 # -----------------------
 library(recommenderlab)
+library(DMwR)
 
 # market basket
 # -----------------------
